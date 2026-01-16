@@ -335,6 +335,16 @@ controller_interface::CallbackReturn AdmittanceController::on_configure(
   state_publisher_ =
     std::make_unique<realtime_tools::RealtimePublisher<ControllerStateMsg>>(s_publisher_);
 
+  debug_pub_ref_ = get_node()->create_publisher<trajectory_msgs::msg::JointTrajectoryPoint>(
+   "~/debug_reference", rclcpp::SystemDefaultsQoS());
+  debug_pub_ref_rt_ =
+    std::make_unique<realtime_tools::RealtimePublisher<trajectory_msgs::msg::JointTrajectoryPoint>>(debug_pub_ref_);
+
+  debug_pub_ref_admit_ = get_node()->create_publisher<trajectory_msgs::msg::JointTrajectoryPoint>(
+   "~/debug_reference_admittance", rclcpp::SystemDefaultsQoS());
+  debug_pub_ref_admit_rt_ =
+    std::make_unique<realtime_tools::RealtimePublisher<trajectory_msgs::msg::JointTrajectoryPoint>>(debug_pub_ref_admit_);
+
   // Initialize state message
   state_msg_ = admittance_->get_controller_state();
 
@@ -485,9 +495,18 @@ controller_interface::return_type AdmittanceController::update_and_write_command
   if (need_to_reset && *need_to_reset) {
     // Carry out reset
     RCLCPP_INFO(get_node()->get_logger(), "Resetting Admittance");
+    // admittance_->reset(num_joints_);
+    reference_ = reference_admittance_;
 
     // So we don't reset admittance again until the service is re-called 
     reset_buffer_.reset();
+  }
+
+  if (debug_pub_ref_rt_) {
+    debug_pub_ref_rt_->try_publish(reference_);
+  }
+  if (debug_pub_ref_admit_rt_) {
+    debug_pub_ref_admit_rt_->try_publish(reference_admittance_);
   }
 
   // update input reference from chainable interfaces

@@ -76,6 +76,9 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 protected:
+  std::shared_ptr<rclcpp::Publisher<trajectory_msgs::msg::JointTrajectoryPoint>> debug_pub_ref_, debug_pub_ref_admit_;
+  std::unique_ptr<realtime_tools::RealtimePublisher<trajectory_msgs::msg::JointTrajectoryPoint>> debug_pub_ref_rt_, debug_pub_ref_admit_rt_;
+
   std::vector<hardware_interface::CommandInterface> on_export_reference_interfaces() override;
 
   controller_interface::return_type update_reference_from_subscribers(
