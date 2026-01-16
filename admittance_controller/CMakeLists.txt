@@ -18,6 +18,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp
   rclcpp_lifecycle
   realtime_tools
+  std_srvs
   tf2
   tf2_eigen
   tf2_geometry_msgs
@@ -65,7 +66,8 @@ target_link_libraries(admittance_controller PUBLIC
                       ${geometry_msgs_TARGETS}
                       ${trajectory_msgs_TARGETS}
                       ${control_msgs_TARGETS}
-                      ${tf2_geometry_msgs_TARGETS})
+                      ${tf2_geometry_msgs_TARGETS}
+                      ${std_srvs_TARGETS})
 
 pluginlib_export_plugin_description_file(controller_interface admittance_controller.xml)
 

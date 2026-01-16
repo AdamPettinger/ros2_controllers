@@ -338,6 +338,17 @@ controller_interface::CallbackReturn AdmittanceController::on_configure(
   // Initialize state message
   state_msg_ = admittance_->get_controller_state();
 
+  // Service for changing the control mode
+  reset_admittance_state_server_ = get_node()->create_service<std_srvs::srv::Trigger>(
+  "~/reset_admittance", [this](
+                      const std::shared_ptr<std_srvs::srv::Trigger::Request> /*req*/,
+                      std::shared_ptr<std_srvs::srv::Trigger::Response> res) {
+    reset_buffer_.writeFromNonRT(true);
+
+    res->success = true;
+    return res->success;
+  });
+
   // Initialize FTS semantic semantic_component
   force_torque_sensor_ = std::make_unique<semantic_components::ForceTorqueSensor>(
     admittance_->parameters_.ft_sensor.name);
@@ -469,6 +480,16 @@ controller_interface::return_type AdmittanceController::update_and_write_command
     return controller_interface::return_type::ERROR;
   }
 
+  // Check if we need to reset the admittance state before continuing
+  const auto need_to_reset = reset_buffer_.readFromRT();
+  if (need_to_reset && *need_to_reset) {
+    // Carry out reset
+    RCLCPP_INFO(get_node()->get_logger(), "Resetting Admittance");
+
+    // So we don't reset admittance again until the service is re-called 
+    reset_buffer_.reset();
+  }
+
   // update input reference from chainable interfaces
   read_state_reference_interfaces(reference_);
 
@@ -532,6 +553,8 @@ controller_interface::CallbackReturn AdmittanceController::on_deactivate(
 
   reset_controller_reference_msg(joint_command_msg_);
   reset_wrench_msg(wrench_command_msg_, get_node());
+
+  reset_buffer_.reset();
 
   return CallbackReturn::SUCCESS;
 }

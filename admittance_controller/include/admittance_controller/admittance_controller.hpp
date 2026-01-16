@@ -31,9 +31,11 @@
 #include "rclcpp/duration.hpp"
 #include "rclcpp/time.hpp"
 #include "rclcpp_lifecycle/state.hpp"
+#include "realtime_tools/realtime_buffer.hpp"
 #include "realtime_tools/realtime_publisher.hpp"
 #include "realtime_tools/realtime_thread_safe_box.hpp"
 #include "semantic_components/force_torque_sensor.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 namespace admittance_controller
 {
@@ -165,6 +167,9 @@ protected:
    * @brief Write values from state_command to claimed hardware interfaces
    */
   void write_state_to_hardware(const trajectory_msgs::msg::JointTrajectoryPoint & state_command);
+
+  realtime_tools::RealtimeBuffer<bool> reset_buffer_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_admittance_state_server_;
 };
 
 }  // namespace admittance_controller
