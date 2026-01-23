@@ -39,6 +39,7 @@
 #include "realtime_tools/realtime_buffer.hpp"
 #include "realtime_tools/realtime_publisher.hpp"
 #include "realtime_tools/realtime_server_goal_handle.hpp"
+#include "std_srvs/srv/trigger.hpp"
 #include "trajectory_msgs/msg/joint_trajectory.hpp"
 #include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 
@@ -256,6 +257,9 @@ protected:
   void query_state_service(
     const std::shared_ptr<control_msgs::srv::QueryTrajectoryState::Request> request,
     std::shared_ptr<control_msgs::srv::QueryTrajectoryState::Response> response);
+
+  realtime_tools::RealtimeBuffer<bool> reset_buffer_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_state_server_;
 
 private:
   void update_pids();

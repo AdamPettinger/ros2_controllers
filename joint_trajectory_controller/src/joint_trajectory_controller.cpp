@@ -170,6 +170,18 @@ controller_interface::return_type JointTrajectoryController::update(
   state_current_.time_from_start.nanosec = 0;
   read_state_from_state_interfaces(state_current_);
 
+  // Check if we need to reset the admittance state before continuing
+  const auto need_to_reset = reset_buffer_.readFromRT();
+  if (need_to_reset && *need_to_reset) {
+    // Carry out reset
+    RCLCPP_INFO(get_node()->get_logger(), "Resetting Admittance");
+
+    // TODO: Call Admittance Controller offset reset
+
+    // So we don't reset admittance again until the service is re-called 
+    reset_buffer_.reset();
+  }
+
   // currently carrying out a trajectory
   if (has_active_trajectory())
   {
@@ -939,6 +951,17 @@ controller_interface::CallbackReturn JointTrajectoryController::on_configure(
     "~/controller_state", rclcpp::SystemDefaultsQoS());
   state_publisher_ = std::make_unique<StatePublisher>(publisher_);
 
+  // Service for changing the control mode
+  reset_state_server_ = get_node()->create_service<std_srvs::srv::Trigger>(
+  "~/reset_admittance", [this](
+                      const std::shared_ptr<std_srvs::srv::Trigger::Request> /*req*/,
+                      std::shared_ptr<std_srvs::srv::Trigger::Response> res) {
+    reset_buffer_.writeFromNonRT(true);
+
+    res->success = true;
+    return res->success;
+  });
+
   state_msg_.joint_names = params_.joints;
   state_msg_.reference.positions.resize(dof_);
   state_msg_.reference.velocities.resize(dof_);
@@ -1182,6 +1205,8 @@ controller_interface::CallbackReturn JointTrajectoryController::on_deactivate(
   subscriber_is_active_ = false;
 
   current_trajectory_.reset();
+
+  reset_buffer_.reset();
 
   return CallbackReturn::SUCCESS;
 }
