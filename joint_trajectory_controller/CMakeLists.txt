@@ -21,6 +21,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   tl_expected
   trajectory_msgs
   urdf
+  std_srvs
 )
 
 find_package(ament_cmake REQUIRED)
@@ -64,6 +65,10 @@ target_link_libraries(joint_trajectory_controller PUBLIC
                       ${control_msgs_TARGETS})
 
 pluginlib_export_plugin_description_file(controller_interface joint_trajectory_plugin.xml)
+
+ament_target_dependencies(joint_trajectory_controller PUBLIC
+  ${THIS_PACKAGE_INCLUDE_DEPENDS}
+)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gmock REQUIRED)

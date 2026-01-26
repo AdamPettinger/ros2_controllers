@@ -939,6 +939,44 @@ controller_interface::CallbackReturn JointTrajectoryController::on_configure(
     "~/controller_state", rclcpp::SystemDefaultsQoS());
   state_publisher_ = std::make_unique<StatePublisher>(publisher_);
 
+  // Service for resetting admittance state
+  reset_state_server_ = get_node()->create_service<std_srvs::srv::Trigger>(
+    "~/jtc_reset_admittance",
+    [this](
+      const std::shared_ptr<std_srvs::srv::Trigger::Request> /*req*/,
+      std::shared_ptr<std_srvs::srv::Trigger::Response> res)
+    {
+      RCLCPP_INFO(get_node()->get_logger(), "Resetting Admittance JTC");
+
+      // Reset JTC internal state to current hardware position
+      read_state_from_state_interfaces(state_current_);
+
+      // Look for any exported reset reference interfaces (e.g. '<controller>/reset')
+      // and set them to 1.0 so chained controllers can detect a reset request.
+      if (reset_interface_.has_value())
+      {
+        try
+        {
+          reset_interface_.value().get().set_value(1.0);
+        }
+        catch (const std::exception & e)
+        {
+          RCLCPP_ERROR(get_node()->get_logger(), "Failed to write reset interface: %s", e.what());
+          res->success = false;
+          res->message = "Failed to write reset interface.";
+          return res->success;
+        }
+      }
+      else
+      {
+        RCLCPP_WARN(
+          get_node()->get_logger(), "No reset chainable interface available to write to.");
+      }
+
+      res->success = true;
+      return res->success;
+    });
+
   state_msg_.joint_names = params_.joints;
   state_msg_.reference.positions.resize(dof_);
   state_msg_.reference.velocities.resize(dof_);
@@ -1057,6 +1095,30 @@ controller_interface::CallbackReturn JointTrajectoryController::on_activate(
     }
   }
 
+  // Find optional single-value 'reset' chainable interface among claimed command interfaces.
+  // This allows this controller to trigger admittance reset on upstream controllers.
+  reset_interface_.reset();
+  for (size_t i = 0; i < command_interfaces_.size(); ++i)
+  {
+    try
+    {
+      if (command_interfaces_[i].get_interface_name() == "reset")
+      {
+        reset_interface_ = std::ref(command_interfaces_[i]);
+        // initialize to zero
+        reset_interface_.value().get().set_value(0.0);
+        RCLCPP_INFO(
+          logger, "Found and wired reset chainable interface: %s",
+          command_interfaces_[i].get_name().c_str());
+        break;
+      }
+    }
+    catch (...)
+    {
+      // ignore any exceptions querying interface names
+    }
+  }
+
   current_trajectory_ = std::make_shared<Trajectory>();
   new_trajectory_msg_.writeFromNonRT(std::shared_ptr<trajectory_msgs::msg::JointTrajectory>());
 
@@ -1131,6 +1193,19 @@ controller_interface::CallbackReturn JointTrajectoryController::on_deactivate(
     action_res->set__error_string("Current goal cancelled during deactivate transition.");
     active_goal->setAborted(action_res);
     rt_active_goal_.writeFromNonRT(RealtimeGoalHandlePtr());
+  }
+
+  // clear wired reset interface reference
+  if (reset_interface_.has_value())
+  {
+    try
+    {
+      reset_interface_.reset();
+      RCLCPP_DEBUG(logger, "Cleared reset chainable interface reference on deactivate.");
+    }
+    catch (...)
+    {
+    }
   }
 
   for (size_t index = 0; index < num_cmd_joints_; ++index)

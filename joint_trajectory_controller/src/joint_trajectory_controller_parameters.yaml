@@ -30,7 +30,7 @@ joint_trajectory_controller:
     validation: {
       unique<>: null,
       size_gt<>: [0],
-      subset_of<>: [["position", "velocity", "acceleration", "effort",]],
+      subset_of<>: [["position", "velocity", "acceleration", "effort", "reset",]],
       "joint_trajectory_controller::command_interface_type_combinations": null,
     }
   }
