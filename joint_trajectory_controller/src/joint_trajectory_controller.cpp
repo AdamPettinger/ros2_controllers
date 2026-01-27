@@ -110,7 +110,18 @@ JointTrajectoryController::command_interface_configuration() const
   {
     for (const auto & interface_type : params_.command_interfaces)
     {
-      conf.names.push_back(joint_name + "/" + interface_type);
+      if (interface_type == hardware_interface::HW_IF_POSITION || interface_type == hardware_interface::HW_IF_VELOCITY)
+      {
+        conf.names.push_back(joint_name + "/" + interface_type);
+      }
+    }
+  }
+  for (const auto & interface_type : params_.command_interfaces)
+  {
+    if (interface_type == "reset")
+    {
+      // HARD CODED TODO: fix this to use controller name properly
+      conf.names.push_back("admittance_controller/" + interface_type);
     }
   }
   return conf;
@@ -169,6 +180,43 @@ controller_interface::return_type JointTrajectoryController::update(
   state_current_.time_from_start.sec = 0;
   state_current_.time_from_start.nanosec = 0;
   read_state_from_state_interfaces(state_current_);
+
+  // if (reset_interface_.has_value())
+  // {
+  //   RCLCPP_INFO(
+  //     get_node()->get_logger(), "Joint Trajectory Controller: Current reset reference value: %f", reset_interface_.value().get().get_value());
+  // }
+  
+  // Check if we need to reset the admittance state before continuing
+  const auto need_to_reset = reset_buffer_.readFromRT();
+  if (need_to_reset && *need_to_reset)
+  {
+    RCLCPP_INFO(get_node()->get_logger(), "Resetting admittance RT");
+
+    // Set current command to current state
+    command_current_ = state_current_;
+
+    // Look for any exported reset reference interfaces (e.g. '<controller>/reset')
+    // and set them to 1.0 so chained controllers can detect a reset request.
+    if (reset_interface_.has_value())
+    {
+      try
+      {
+        reset_interface_.value().get().set_value(1.0);
+      }
+      catch (const std::exception & e)
+      {
+        RCLCPP_ERROR(get_node()->get_logger(), "Failed to write reset interface: %s", e.what());
+      }
+    }
+    else
+    {
+      RCLCPP_WARN(get_node()->get_logger(), "No reset chainable interface available to write to.");
+    }
+
+    // So we don't reset admittance again until the service is re-called
+    reset_buffer_.reset();
+  }
 
   // currently carrying out a trajectory
   if (has_active_trajectory())
@@ -946,32 +994,10 @@ controller_interface::CallbackReturn JointTrajectoryController::on_configure(
       const std::shared_ptr<std_srvs::srv::Trigger::Request> /*req*/,
       std::shared_ptr<std_srvs::srv::Trigger::Response> res)
     {
-      RCLCPP_INFO(get_node()->get_logger(), "Resetting Admittance JTC");
+      RCLCPP_INFO(get_node()->get_logger(), "Resetting Admittance JTC NonRT");
 
-      // Reset JTC internal state to current hardware position
-      read_state_from_state_interfaces(state_current_);
-
-      // Look for any exported reset reference interfaces (e.g. '<controller>/reset')
-      // and set them to 1.0 so chained controllers can detect a reset request.
-      if (reset_interface_.has_value())
-      {
-        try
-        {
-          reset_interface_.value().get().set_value(1.0);
-        }
-        catch (const std::exception & e)
-        {
-          RCLCPP_ERROR(get_node()->get_logger(), "Failed to write reset interface: %s", e.what());
-          res->success = false;
-          res->message = "Failed to write reset interface.";
-          return res->success;
-        }
-      }
-      else
-      {
-        RCLCPP_WARN(
-          get_node()->get_logger(), "No reset chainable interface available to write to.");
-      }
+      // set RT variable to true
+      reset_buffer_.writeFromNonRT(true);
 
       res->success = true;
       return res->success;
@@ -1068,16 +1094,19 @@ controller_interface::CallbackReturn JointTrajectoryController::on_activate(
   // order all joints in the storage
   for (const auto & interface : params_.command_interfaces)
   {
-    auto it =
-      std::find(allowed_interface_types_.begin(), allowed_interface_types_.end(), interface);
-    auto index = static_cast<size_t>(std::distance(allowed_interface_types_.begin(), it));
-    if (!controller_interface::get_ordered_interfaces(
-          command_interfaces_, command_joint_names_, interface, joint_command_interface_[index]))
+    if (interface == hardware_interface::HW_IF_POSITION || interface == hardware_interface::HW_IF_VELOCITY)
     {
-      RCLCPP_ERROR(
-        logger, "Expected %zu '%s' command interfaces, got %zu.", num_cmd_joints_,
-        interface.c_str(), joint_command_interface_[index].size());
-      return CallbackReturn::ERROR;
+      auto it =
+        std::find(allowed_interface_types_.begin(), allowed_interface_types_.end(), interface);
+      auto index = static_cast<size_t>(std::distance(allowed_interface_types_.begin(), it));
+      if (!controller_interface::get_ordered_interfaces(
+            command_interfaces_, command_joint_names_, interface, joint_command_interface_[index]))
+      {
+        RCLCPP_ERROR(
+          logger, "Expected %zu '%s' command interfaces, got %zu.", num_cmd_joints_,
+          interface.c_str(), joint_command_interface_[index].size());
+        return CallbackReturn::ERROR;
+      }
     }
   }
   for (const auto & interface : params_.state_interfaces)
@@ -1115,7 +1144,10 @@ controller_interface::CallbackReturn JointTrajectoryController::on_activate(
     }
     catch (...)
     {
-      // ignore any exceptions querying interface names
+      RCLCPP_WARN(
+        logger, "Unable to access command interface at index %zu while searching for 'reset' "
+                "chainable interface.",
+        i);
     }
   }
 
@@ -1194,6 +1226,9 @@ controller_interface::CallbackReturn JointTrajectoryController::on_deactivate(
     active_goal->setAborted(action_res);
     rt_active_goal_.writeFromNonRT(RealtimeGoalHandlePtr());
   }
+
+  // clear admittance reset buffer
+  reset_buffer_.reset();
 
   // clear wired reset interface reference
   if (reset_interface_.has_value())

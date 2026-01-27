@@ -34,7 +34,6 @@
 #include "rclcpp/subscription.hpp"
 #include "rclcpp/time.hpp"
 #include "rclcpp/timer.hpp"
-#include "rclcpp/service.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "rclcpp_action/server.hpp"
 #include "rclcpp_lifecycle/state.hpp"
@@ -261,6 +260,7 @@ protected:
     const std::shared_ptr<control_msgs::srv::QueryTrajectoryState::Request> request,
     std::shared_ptr<control_msgs::srv::QueryTrajectoryState::Response> response);
 
+  realtime_tools::RealtimeBuffer<bool> reset_buffer_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_state_server_;
 
   // Optional chainable single-value reset interface exported by other controllers

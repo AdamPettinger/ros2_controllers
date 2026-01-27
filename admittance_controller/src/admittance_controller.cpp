@@ -174,13 +174,16 @@ AdmittanceController::on_export_reference_interfaces()
   {
     if (interface == "reset")
     {
-      // export single scalar reset reference: <node_name>/reset
-      const auto exported_name = std::string(get_node()->get_name()) + "/reset";
+      // export single scalar reset reference: admittance_controller/reset
+      RCLCPP_INFO(
+        get_node()->get_logger(), "Wiring chainable single-value interface: reset");
+      const auto exported_name = std::string(get_node()->get_name()); // + "/reset";
       chainable_command_interfaces.emplace_back(hardware_interface::CommandInterface(
         exported_name, interface, reference_interfaces_.data() + index));
       // wire reset_reference_ to this exported element
       reset_reference_ = std::ref(reference_interfaces_[index]);
       has_reset_reference_ = true;
+      reset_reference_.get() = 0.0;
       index++;
       continue;
     }
@@ -236,7 +239,7 @@ controller_interface::CallbackReturn AdmittanceController::on_configure(
   // validate exported interfaces
   for (const auto & tmp : admittance_->parameters_.chainable_command_interfaces)
   {
-    if (tmp == hardware_interface::HW_IF_POSITION || tmp == hardware_interface::HW_IF_VELOCITY)
+    if (tmp == hardware_interface::HW_IF_POSITION || tmp == hardware_interface::HW_IF_VELOCITY || tmp == "reset")
     {
       RCLCPP_INFO(
         get_node()->get_logger(), "%s", ("chainable int types are: " + tmp + "\n").c_str());
@@ -513,13 +516,16 @@ controller_interface::return_type AdmittanceController::update_and_write_command
   // perform reset and clear the reference.
   if (has_reset_reference_)
   {
+    // RCLCPP_INFO(
+    //     get_node()->get_logger(), "Admittance Controller: Current reset reference value: %f", reset_reference_.get());
     const double reset_val = reset_reference_.get();
-    if (reset_val > 0.5)
+    if (abs(reset_val) > 1e-3)
     {
       RCLCPP_INFO(
         get_node()->get_logger(), "Resetting Admittance in Admittance Controller (chainable ref)");
-      // admittance_->reset(num_joints_);
-      reference_ = reference_admittance_;
+      admittance_->reset(num_joints_); // Resets admittance offsets
+      // reference_ = reference_admittance_; // Resets reference position (we want to do this in JTC)
+
       // clear the flag so it won't trigger repeatedly
       reset_reference_.get() = 0.0;
     }
@@ -562,13 +568,6 @@ controller_interface::CallbackReturn AdmittanceController::on_deactivate(
       else if (interface == hardware_interface::HW_IF_VELOCITY)
         velocity_reference_[i].get() = std::numeric_limits<double>::quiet_NaN();
     }
-  }
-
-  // clear optional single-value reset reference if exported
-  if (has_reset_reference_)
-  {
-    reset_reference_.get() = 0.0;
-    has_reset_reference_ = false;
   }
 
   for (size_t index = 0; index < allowed_interface_types_.size(); ++index)
