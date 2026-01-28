@@ -193,8 +193,12 @@ controller_interface::return_type JointTrajectoryController::update(
   {
     RCLCPP_INFO(get_node()->get_logger(), "Resetting admittance RT");
 
+    RCLCPP_INFO(get_node()->get_logger(), "JTC Current Command before reset: [%f, %f, %f]", command_current_.positions[0], state_current_.positions[1], state_current_.positions[2]);
+
     // Set current command to current state
     command_current_ = state_current_;
+
+    RCLCPP_INFO(get_node()->get_logger(), "JTC Current Command after reset: [%f, %f, %f]", command_current_.positions[0], command_current_.positions[1], command_current_.positions[2]);
 
     // Look for any exported reset reference interfaces (e.g. '<controller>/reset')
     // and set them to 1.0 so chained controllers can detect a reset request.
