@@ -110,20 +110,12 @@ JointTrajectoryController::command_interface_configuration() const
   {
     for (const auto & interface_type : params_.command_interfaces)
     {
-      if (
-        interface_type == hardware_interface::HW_IF_POSITION ||
-        interface_type == hardware_interface::HW_IF_VELOCITY)
-      {
-        conf.names.push_back(params_.chained_controller + "/" + joint_name + "/" + interface_type);
-      }
+      conf.names.push_back(joint_name + "/" + interface_type);
     }
   }
-  for (const auto & interface_type : params_.command_interfaces)
+  if (!params_.reset_interface.empty())
   {
-    if (interface_type == "reset")
-    {
-      conf.names.push_back(params_.chained_controller + "/" + interface_type);
-    }
+    conf.names.push_back(params_.reset_interface);
   }
   return conf;
 }
@@ -1085,21 +1077,16 @@ controller_interface::CallbackReturn JointTrajectoryController::on_activate(
   // order all joints in the storage
   for (const auto & interface : params_.command_interfaces)
   {
-    if (
-      interface == hardware_interface::HW_IF_POSITION ||
-      interface == hardware_interface::HW_IF_VELOCITY)
+    auto it =
+      std::find(allowed_interface_types_.begin(), allowed_interface_types_.end(), interface);
+    auto index = static_cast<size_t>(std::distance(allowed_interface_types_.begin(), it));
+    if (!controller_interface::get_ordered_interfaces(
+          command_interfaces_, command_joint_names_, interface, joint_command_interface_[index]))
     {
-      auto it =
-        std::find(allowed_interface_types_.begin(), allowed_interface_types_.end(), interface);
-      auto index = static_cast<size_t>(std::distance(allowed_interface_types_.begin(), it));
-      if (!controller_interface::get_ordered_interfaces(
-            command_interfaces_, command_joint_names_, interface, joint_command_interface_[index]))
-      {
-        RCLCPP_ERROR(
-          logger, "Expected %zu '%s' command interfaces, got %zu.", num_cmd_joints_,
-          interface.c_str(), joint_command_interface_[index].size());
-        return CallbackReturn::ERROR;
-      }
+      RCLCPP_ERROR(
+        logger, "Expected %zu '%s' command interfaces, got %zu.", num_cmd_joints_,
+        interface.c_str(), joint_command_interface_[index].size());
+      return CallbackReturn::ERROR;
     }
   }
   for (const auto & interface : params_.state_interfaces)

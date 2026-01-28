@@ -22,6 +22,12 @@ joint_trajectory_controller:
       unique<>: null,
     }
   }
+  reset_interface: {
+    type: string,
+    default_value: "",
+    description: "Chained controller reset interface",
+    read_only: true,
+  }
   command_interfaces: {
     type: string_array,
     default_value: [],
@@ -30,17 +36,8 @@ joint_trajectory_controller:
     validation: {
       unique<>: null,
       size_gt<>: [0],
-      subset_of<>: [["position", "velocity", "acceleration", "effort", "reset",]],
+      subset_of<>: [["position", "velocity", "acceleration", "effort",]],
       "joint_trajectory_controller::command_interface_type_combinations": null,
-    }
-  }
-  chained_controller: {
-    type: string,
-    default_value: "",
-    description: "Chained controller namespace to use with all command interfaces",
-    read_only: true,
-    validation: {
-      unique<>: null,
     }
   }
   state_interfaces: {
