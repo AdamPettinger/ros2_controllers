@@ -145,9 +145,6 @@ AdmittanceController::on_export_reference_interfaces()
   }
 
   std::vector<hardware_interface::CommandInterface> chainable_command_interfaces;
-  // compute number of exported references: normally per-joint for each
-  // chainable interface, but allow special single-value interfaces such as
-  // a "reset" scalar which is not per-joint.
   size_t num_chainable_interfaces = 0ul;
   for (const auto & iface : admittance_->parameters_.chainable_command_interfaces)
   {
@@ -167,19 +164,16 @@ AdmittanceController::on_export_reference_interfaces()
   position_reference_ = {};
   velocity_reference_ = {};
 
-  // assign reference interfaces. support a special single-value interface
-  // named "reset" (not per-joint) that upstream controllers can write to.
+  // assign reference interfaces
   auto index = 0ul;
   for (const auto & interface : admittance_->parameters_.chainable_command_interfaces)
   {
     if (interface == "reset")
     {
-      // export single scalar reset reference: admittance_controller/reset
       RCLCPP_INFO(get_node()->get_logger(), "Wiring chainable single-value interface: reset");
-      const auto exported_name = std::string(get_node()->get_name());  // + "/reset";
+      const auto exported_name = std::string(get_node()->get_name());
       chainable_command_interfaces.emplace_back(hardware_interface::CommandInterface(
         exported_name, interface, reference_interfaces_.data() + index));
-      // wire reset_reference_ to this exported element
       reset_reference_ = std::ref(reference_interfaces_[index]);
       has_reset_reference_ = true;
       reset_reference_.get() = 0.0;
@@ -196,7 +190,8 @@ AdmittanceController::on_export_reference_interfaces()
         velocity_reference_.emplace_back(reference_interfaces_[index]);
       }
       const auto exported_prefix = std::string(get_node()->get_name()) + "/" + joint;
-      chainable_command_interfaces.emplace_back(hardware_interface::CommandInterface(
+      chainable_command_interfaces.emplace_back(
+        hardware_interface::CommandInterface(
         exported_prefix, interface, reference_interfaces_.data() + index));
 
       index++;
@@ -512,15 +507,13 @@ controller_interface::return_type AdmittanceController::update_and_write_command
 
   auto offsetted_ft_values = add_wrenches(ft_values_, wrench_command_msg_.wrench);
 
-  // check an optional chainable reset reference written by an
-  // upstream controller (e.g. JointTrajectoryController). If present 
-  // and nonzero, perform reset and clear the reference.
+  // check an optional chainable reset reference written by an upstream controller
   if (has_reset_reference_)
   {
     const double reset_val = reset_reference_.get();
     if (abs(reset_val) > 1e-3)
     {
-      // Resets admittance offsets
+      // reset admittance offsets
       admittance_->reset(num_joints_);
 
       // clear the flag so it won't trigger repeatedly

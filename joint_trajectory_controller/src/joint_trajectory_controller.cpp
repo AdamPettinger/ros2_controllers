@@ -182,7 +182,7 @@ controller_interface::return_type JointTrajectoryController::update(
     add_new_trajectory_msg(set_hold_position());
 
     // Look for any exported reset reference interfaces (e.g. '<controller>/reset')
-    // and set them to 1.0 so chained controllers can detect a reset request.
+    // and set them to 1.0 so chained controllers can detect a reset request
     if (reset_interface_.has_value())
     {
       try
@@ -972,7 +972,7 @@ controller_interface::CallbackReturn JointTrajectoryController::on_configure(
     "~/controller_state", rclcpp::SystemDefaultsQoS());
   state_publisher_ = std::make_unique<StatePublisher>(publisher_);
 
-  // Service for resetting admittance state
+  // Service for resetting state
   reset_state_server_ = get_node()->create_service<std_srvs::srv::Trigger>(
     "~/reset",
     [this](
@@ -1104,8 +1104,7 @@ controller_interface::CallbackReturn JointTrajectoryController::on_activate(
     }
   }
 
-  // Find optional single-value 'reset' chainable interface among claimed command interfaces.
-  // This allows this controller to trigger admittance reset on upstream controllers.
+  // find optional single-value 'reset' chainable interface among claimed command interfaces
   reset_interface_.reset();
   for (size_t i = 0; i < command_interfaces_.size(); ++i)
   {
