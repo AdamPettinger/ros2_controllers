@@ -110,9 +110,11 @@ JointTrajectoryController::command_interface_configuration() const
   {
     for (const auto & interface_type : params_.command_interfaces)
     {
-      if (interface_type == hardware_interface::HW_IF_POSITION || interface_type == hardware_interface::HW_IF_VELOCITY)
+      if (
+        interface_type == hardware_interface::HW_IF_POSITION ||
+        interface_type == hardware_interface::HW_IF_VELOCITY)
       {
-        conf.names.push_back(joint_name + "/" + interface_type);
+        conf.names.push_back(params_.chained_controller + "/" + joint_name + "/" + interface_type);
       }
     }
   }
@@ -120,8 +122,7 @@ JointTrajectoryController::command_interface_configuration() const
   {
     if (interface_type == "reset")
     {
-      // HARD CODED TODO: fix this to use controller name properly
-      conf.names.push_back("admittance_controller/" + interface_type);
+      conf.names.push_back(params_.chained_controller + "/" + interface_type);
     }
   }
   return conf;
@@ -180,14 +181,14 @@ controller_interface::return_type JointTrajectoryController::update(
   state_current_.time_from_start.sec = 0;
   state_current_.time_from_start.nanosec = 0;
   read_state_from_state_interfaces(state_current_);
-  
+
   // Check if we need to reset
   const auto need_to_reset = reset_buffer_.readFromRT();
   if (need_to_reset && *need_to_reset)
   {
     // Send hold position command to reset trajectory
     add_new_trajectory_msg(set_hold_position());
-    
+
     // Look for any exported reset reference interfaces (e.g. '<controller>/reset')
     // and set them to 1.0 so chained controllers can detect a reset request.
     if (reset_interface_.has_value())
@@ -1084,7 +1085,9 @@ controller_interface::CallbackReturn JointTrajectoryController::on_activate(
   // order all joints in the storage
   for (const auto & interface : params_.command_interfaces)
   {
-    if (interface == hardware_interface::HW_IF_POSITION || interface == hardware_interface::HW_IF_VELOCITY)
+    if (
+      interface == hardware_interface::HW_IF_POSITION ||
+      interface == hardware_interface::HW_IF_VELOCITY)
     {
       auto it =
         std::find(allowed_interface_types_.begin(), allowed_interface_types_.end(), interface);
@@ -1135,8 +1138,9 @@ controller_interface::CallbackReturn JointTrajectoryController::on_activate(
     catch (...)
     {
       RCLCPP_WARN(
-        logger, "Unable to access command interface at index %zu while searching for 'reset' "
-                "chainable interface.",
+        logger,
+        "Unable to access command interface at index %zu while searching for 'reset' "
+        "chainable interface.",
         i);
     }
   }
