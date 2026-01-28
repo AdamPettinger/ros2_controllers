@@ -498,20 +498,6 @@ controller_interface::return_type AdmittanceController::update_and_write_command
     return controller_interface::return_type::ERROR;
   }
 
-  const double reset_val = reset_reference_.get();
-
-  if (has_reset_reference_)
-  {
-    // const double reset_val = reset_reference_.get();
-    if (abs(reset_val) > 1e-3)
-    {
-      RCLCPP_INFO(
-        get_node()->get_logger(), "Admittance Reference Position before reset: [%f, %f, %f]",
-        reference_.positions[0], reference_.positions[1], reference_.positions[2]);
-    }
-  }
-
-
   // update input reference from chainable interfaces
   read_state_reference_interfaces(reference_);
 
@@ -526,29 +512,16 @@ controller_interface::return_type AdmittanceController::update_and_write_command
 
   auto offsetted_ft_values = add_wrenches(ft_values_, wrench_command_msg_.wrench);
 
-  // Additionally, check an optional chainable reset reference written by an
-  // upstream controller (e.g. JointTrajectoryController). If present and >0.5,
-  // perform reset and clear the reference.
+  // check an optional chainable reset reference written by an
+  // upstream controller (e.g. JointTrajectoryController). If present 
+  // and nonzero, perform reset and clear the reference.
   if (has_reset_reference_)
   {
-    // RCLCPP_INFO(
-    //     get_node()->get_logger(), "Admittance Controller: Current reset reference value: %f",
-    //     reset_reference_.get());
-    // const double reset_val = reset_reference_.get();
+    const double reset_val = reset_reference_.get();
     if (abs(reset_val) > 1e-3)
     {
-      RCLCPP_INFO(
-        get_node()->get_logger(), "Resetting Admittance in Admittance Controller (chainable ref)");
-      RCLCPP_INFO(
-        get_node()->get_logger(), "Admittance Reference Position after reset: [%f, %f, %f]",
-        reference_.positions[0], reference_.positions[1], reference_.positions[2]);
-      RCLCPP_INFO(
-        get_node()->get_logger(), "Admittance Offset before reset: [%f, %f, %f]",
-        reference_admittance_.positions[0], reference_admittance_.positions[1],
-        reference_admittance_.positions[2]);
-      admittance_->reset(num_joints_);  // Resets admittance offsets
-      // reference_ = reference_admittance_; // Resets reference position (we want to do this in
-      // JTC)
+      // Resets admittance offsets
+      admittance_->reset(num_joints_);
 
       // clear the flag so it won't trigger repeatedly
       reset_reference_.get() = 0.0;
@@ -557,26 +530,6 @@ controller_interface::return_type AdmittanceController::update_and_write_command
 
   // apply admittance control to reference to determine desired state
   admittance_->update(joint_state_, offsetted_ft_values, reference_, period, reference_admittance_);
-
-  if (has_reset_reference_)
-  {
-    // const double reset_val = reset_reference_.get();
-    if (abs(reset_val) > 1e-3)
-    {
-      RCLCPP_INFO(
-        get_node()->get_logger(), "Admittance Offset after reset: [%f, %f, %f]",
-        reference_admittance_.positions[0], reference_admittance_.positions[1],
-        reference_admittance_.positions[2]);
-      const std::vector<double> diff = {
-        reference_.positions[0] - reference_admittance_.positions[0],
-        reference_.positions[1] - reference_admittance_.positions[1],
-        reference_.positions[2] - reference_admittance_.positions[2]};
-      const bool reset_good = std::sqrt(std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0)) < 1e-6;
-      RCLCPP_INFO(
-        get_node()->get_logger(), "Admittance Offset Reset successful: %s",
-        reset_good ? "TRUE" : "FALSE");
-    }
-  }
 
   // write calculated values to joint interfaces
   write_state_to_hardware(reference_admittance_);

@@ -180,30 +180,14 @@ controller_interface::return_type JointTrajectoryController::update(
   state_current_.time_from_start.sec = 0;
   state_current_.time_from_start.nanosec = 0;
   read_state_from_state_interfaces(state_current_);
-
-  // if (reset_interface_.has_value())
-  // {
-  //   RCLCPP_INFO(
-  //     get_node()->get_logger(), "Joint Trajectory Controller: Current reset reference value: %f", reset_interface_.value().get().get_value());
-  // }
   
-  // Check if we need to reset the admittance state before continuing
+  // Check if we need to reset
   const auto need_to_reset = reset_buffer_.readFromRT();
   if (need_to_reset && *need_to_reset)
   {
-    RCLCPP_INFO(get_node()->get_logger(), "Resetting admittance RT");
-
-    RCLCPP_INFO(get_node()->get_logger(), "JTC Desired State before reset: [%f, %f, %f]", state_desired_.positions[0], state_desired_.positions[1], state_desired_.positions[2]);
-    RCLCPP_INFO(get_node()->get_logger(), "JTC Command Next before reset: [%f, %f, %f]", command_next_.positions[0], command_next_.positions[1], command_next_.positions[2]);
-
-    // Set current command to current state
-    // state_desired_ = state_current_;
-    // command_next_ = state_current_;
+    // Send hold position command to reset trajectory
     add_new_trajectory_msg(set_hold_position());
-
-    // RCLCPP_INFO(get_node()->get_logger(), "JTC Desired State after reset: [%f, %f, %f]", state_desired_.positions[0], state_desired_.positions[1], state_desired_.positions[2]);
-    // RCLCPP_INFO(get_node()->get_logger(), "JTC Command Next after reset: [%f, %f, %f]", command_next_.positions[0], command_next_.positions[1], command_next_.positions[2]);
-
+    
     // Look for any exported reset reference interfaces (e.g. '<controller>/reset')
     // and set them to 1.0 so chained controllers can detect a reset request.
     if (reset_interface_.has_value())
@@ -222,7 +206,7 @@ controller_interface::return_type JointTrajectoryController::update(
       RCLCPP_WARN(get_node()->get_logger(), "No reset chainable interface available to write to.");
     }
 
-    // So we don't reset admittance again until the service is re-called
+    // So we don't reset again until the service is re-called
     reset_buffer_.reset();
   }
 
@@ -997,13 +981,11 @@ controller_interface::CallbackReturn JointTrajectoryController::on_configure(
 
   // Service for resetting admittance state
   reset_state_server_ = get_node()->create_service<std_srvs::srv::Trigger>(
-    "~/jtc_reset_admittance",
+    "~/reset",
     [this](
       const std::shared_ptr<std_srvs::srv::Trigger::Request> /*req*/,
       std::shared_ptr<std_srvs::srv::Trigger::Response> res)
     {
-      RCLCPP_INFO(get_node()->get_logger(), "Resetting Admittance JTC NonRT");
-
       // set RT variable to true
       reset_buffer_.writeFromNonRT(true);
 
