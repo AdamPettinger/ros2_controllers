@@ -178,9 +178,6 @@ controller_interface::return_type JointTrajectoryController::update(
   const auto need_to_reset = reset_buffer_.readFromRT();
   if (need_to_reset && *need_to_reset)
   {
-    // Send hold position command to reset trajectory
-    add_new_trajectory_msg(set_hold_position());
-
     // Look for any exported reset reference interfaces (e.g. '<controller>/reset')
     // and set them to 1.0 so chained controllers can detect a reset request
     if (reset_interface_.has_value())
@@ -981,6 +978,9 @@ controller_interface::CallbackReturn JointTrajectoryController::on_configure(
     {
       // set RT variable to true
       reset_buffer_.writeFromNonRT(true);
+
+      // Send hold position command to reset trajectory
+      add_new_trajectory_msg(set_hold_position());
 
       res->success = true;
       return res->success;
