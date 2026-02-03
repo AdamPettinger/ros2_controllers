@@ -146,9 +146,9 @@ AdmittanceController::on_export_reference_interfaces()
 
   std::vector<hardware_interface::CommandInterface> chainable_command_interfaces;
   size_t num_chainable_interfaces = 0ul;
-  for (const auto & iface : admittance_->parameters_.chainable_command_interfaces)
+  for (const auto & interface : admittance_->parameters_.chainable_command_interfaces)
   {
-    if (iface == "reset")
+    if (interface == "reset")
     {
       num_chainable_interfaces += 1ul;
     }
@@ -190,8 +190,7 @@ AdmittanceController::on_export_reference_interfaces()
         velocity_reference_.emplace_back(reference_interfaces_[index]);
       }
       const auto exported_prefix = std::string(get_node()->get_name()) + "/" + joint;
-      chainable_command_interfaces.emplace_back(
-        hardware_interface::CommandInterface(
+      chainable_command_interfaces.emplace_back(hardware_interface::CommandInterface(
         exported_prefix, interface, reference_interfaces_.data() + index));
 
       index++;
